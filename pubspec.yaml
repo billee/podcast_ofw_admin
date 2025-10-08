@@ -17,6 +17,9 @@ dependencies:
   cloud_firestore: ^4.15.1
   provider: ^6.1.1
   fluttertoast: ^8.2.4
+  supabase: ^1.10.4  # Add this for Supabase
+
+
 
 dev_dependencies:
   flutter_test:

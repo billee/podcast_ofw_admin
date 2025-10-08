@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import 'uploads_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -163,6 +164,19 @@ class DashboardScreen extends StatelessWidget {
             title: const Text('Dashboard'),
             onTap: () {
               Navigator.pop(context);
+            },
+          ),
+
+          // Uploads Menu Item - ADD THIS
+          ListTile(
+            leading: const Icon(Icons.upload, color: Colors.teal),
+            title: const Text('Uploads'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UploadsScreen()),
+              );
             },
           ),
 
