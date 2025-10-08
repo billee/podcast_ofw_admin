@@ -1,3 +1,4 @@
+// dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,16 +16,8 @@ class DashboardScreen extends StatelessWidget {
         title: const Text('OFW Podcasts Admin'),
         backgroundColor: Colors.blue[700],
         elevation: 1,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await authService.logout();
-            },
-            tooltip: 'Logout',
-          ),
-        ],
       ),
+      drawer: _buildDrawer(context, authService),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -121,6 +114,110 @@ class DashboardScreen extends StatelessWidget {
         },
         backgroundColor: Colors.blue[700],
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, AuthService authService) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          // Drawer Header
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue[700],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.admin_panel_settings,
+                  size: 48,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'OFW Podcasts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  authService.currentUser?.email ?? 'Admin',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Dashboard Menu Item
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: Colors.blue),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Podcasts Menu Item
+          ListTile(
+            leading: const Icon(Icons.podcasts, color: Colors.green),
+            title: const Text('Podcasts'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Users Menu Item
+          ListTile(
+            leading: const Icon(Icons.people, color: Colors.orange),
+            title: const Text('Users'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Analytics Menu Item
+          ListTile(
+            leading: const Icon(Icons.analytics, color: Colors.purple),
+            title: const Text('Analytics'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Settings Menu Item
+          ListTile(
+            leading: const Icon(Icons.settings, color: Colors.grey),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Divider
+          const Divider(),
+
+          // Logout Menu Item - Fixed
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout'),
+            onTap: () async {
+              Navigator.pop(context);
+              // Get authService again to ensure we have the latest instance
+              final authService =
+                  Provider.of<AuthService>(context, listen: false);
+              await authService.logout();
+            },
+          ),
+        ],
       ),
     );
   }

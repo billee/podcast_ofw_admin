@@ -1,3 +1,4 @@
+// auth_service.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -47,7 +48,7 @@ class AuthService with ChangeNotifier {
 
   Future<bool> login(String email, String password) async {
     try {
-      _setLoading(true);
+      _setLoading(true); // This was missing
 
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -77,7 +78,17 @@ class AuthService with ChangeNotifier {
       print('Login error: $e');
       rethrow;
     } finally {
-      _setLoading(false);
+      _setLoading(false); // This was missing
     }
+  }
+
+  Future<void> logout() async {
+    await _auth.signOut();
+  }
+
+  // Add this missing method
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
   }
 }
