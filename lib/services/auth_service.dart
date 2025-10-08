@@ -24,10 +24,16 @@ class AuthService with ChangeNotifier {
 
     if (user != null) {
       try {
-        // Check if user is admin
+        // Check if user is admin with proper field validation
         final userDoc =
             await _firestore.collection('admins').doc(user.uid).get();
-        _isAdmin = userDoc.exists;
+
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>?;
+          _isAdmin = data?['is_admin'] == true && data?['is_active'] == true;
+        } else {
+          _isAdmin = false;
+        }
       } catch (e) {
         print('Error checking admin status: $e');
         _isAdmin = false;
@@ -48,7 +54,7 @@ class AuthService with ChangeNotifier {
         password: password,
       );
 
-      // Verify admin role
+      // Verify admin role with field validation
       final userDoc = await _firestore
           .collection('admins')
           .doc(userCredential.user!.uid)
@@ -59,6 +65,13 @@ class AuthService with ChangeNotifier {
         throw Exception('User is not an admin');
       }
 
+      final data = userDoc.data() as Map<String, dynamic>?;
+      if (data?['is_admin'] != true || data?['is_active'] != true) {
+        await _auth.signOut();
+        throw Exception(
+            'User does not have admin privileges or account is inactive');
+      }
+
       return true;
     } catch (e) {
       print('Login error: $e');
@@ -66,14 +79,5 @@ class AuthService with ChangeNotifier {
     } finally {
       _setLoading(false);
     }
-  }
-
-  Future<void> logout() async {
-    await _auth.signOut();
-  }
-
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
   }
 }
