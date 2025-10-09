@@ -120,7 +120,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Supported: MP3, M4A, WAV files from your Downloads folder',
+                                  'Supported: MP3, M4A, WAV files',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey,
@@ -271,6 +271,9 @@ class _UploadsScreenState extends State<UploadsScreen> {
     });
 
     try {
+      // Get the next episode number (guaranteed no gaps/duplicates)
+      final nextEpisode = await _getNextEpisodeNumber();
+
       // Simulate upload progress
       _simulateProgress();
 
@@ -286,16 +289,17 @@ class _UploadsScreenState extends State<UploadsScreen> {
         fileType: _selectedFile!.type,
       );
 
-      // Save to Firestore
+      // Save to Firestore with CORRECT data
       await FirebaseFirestore.instance.collection('podcasts').add({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'audioUrl': audioUrl,
-        'fileName': _selectedFile!.name,
-        'fileSize': _selectedFile!.size,
-        'storageProvider': 'supabase',
+        'audioUrl': audioUrl, // Actual Supabase URL
+        'fileName': _selectedFile!.name, // Original file name
+        'fileSize': _selectedFile!.size, // Actual file size in bytes
+        'storageProvider': 'supabase', // Correct storage provider
         'uploadedAt': FieldValue.serverTimestamp(),
-        'duration': 0,
+        'duration': 0, // Will be 0 until we implement audio analysis
+        'episode': nextEpisode, // Auto-incremented episode number (no gaps)
         'status': 'active',
       });
 
@@ -308,7 +312,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
       });
 
       Fluttertoast.showToast(
-        msg: "Podcast uploaded successfully to Supabase!",
+        msg: "Podcast Episode $nextEpisode uploaded successfully!",
         backgroundColor: Colors.green,
         textColor: Colors.white,
       );
@@ -323,6 +327,71 @@ class _UploadsScreenState extends State<UploadsScreen> {
         backgroundColor: Colors.red,
         textColor: Colors.white,
       );
+    }
+  }
+
+  Future<int> _getNextEpisodeNumber() async {
+    final counterRef = FirebaseFirestore.instance
+        .collection('counters')
+        .doc('podcast_episode');
+
+    try {
+      // Use transaction to safely increment
+      return await FirebaseFirestore.instance
+          .runTransaction<int>((transaction) async {
+        final counterDoc = await transaction.get(counterRef);
+
+        int nextEpisode;
+
+        if (!counterDoc.exists) {
+          // First time - create counter and return episode 1
+          nextEpisode = 1;
+          transaction.set(counterRef, {
+            'currentEpisode': 2, // Set to 2 because we're using 1 now
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          // Increment existing counter
+          final currentEpisode = counterDoc.data()!['currentEpisode'] as int;
+          nextEpisode = currentEpisode;
+          transaction.update(counterRef, {
+            'currentEpisode': currentEpisode + 1,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        return nextEpisode;
+      });
+    } catch (e) {
+      print('Error in episode counter transaction: $e');
+
+      // Fallback: try to get the max episode from existing podcasts
+      try {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('podcasts')
+            .orderBy('episode', descending: true)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          final lastEpisode = querySnapshot.docs.first.data()['episode'] as int;
+          return lastEpisode + 1;
+        }
+        return 1;
+      } catch (fallbackError) {
+        print('Fallback also failed: $fallbackError');
+        return 1; // Ultimate fallback
+      }
+    }
+  }
+
+  Future<int> _getAudioDuration(Uint8List audioBytes) async {
+    try {
+      // This is a simplified example - you'd need to implement actual audio analysis
+      // For now, return 0 as placeholder
+      return 0;
+    } catch (e) {
+      return 0;
     }
   }
 

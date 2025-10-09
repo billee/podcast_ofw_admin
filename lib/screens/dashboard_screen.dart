@@ -296,38 +296,49 @@ class DashboardScreen extends StatelessWidget {
         }
 
         return ListView.builder(
-          itemCount: podcasts.length,
-          itemBuilder: (context, index) {
-            final podcast = podcasts[index];
-            final data = podcast.data() as Map<String, dynamic>;
+            itemCount: podcasts.length,
+            itemBuilder: (context, index) {
+              final podcast = podcasts[index];
+              final data = podcast.data() as Map<String, dynamic>;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const Icon(Icons.audio_file, color: Colors.blue),
-                title: Text(data['title'] ?? 'Untitled'),
-                subtitle: Text(data['description'] ?? 'No description'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () {
-                        _showEditPodcastDialog(context, podcast.id, data);
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        _deletePodcast(context, podcast.id);
-                      },
-                    ),
-                  ],
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'E${data['episode'] ?? '?'}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: Text(data['title'] ?? 'Untitled'),
+                  subtitle: Text(data['description'] ?? 'No description'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () {
+                          _showEditPodcastDialog(context, podcast.id, data);
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          _deletePodcast(context, podcast.id);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        );
+              );
+            });
       },
     );
   }
