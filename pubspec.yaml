@@ -18,7 +18,7 @@ dependencies:
   provider: ^6.1.1
   fluttertoast: ^8.2.4
   supabase: ^1.10.4  # Add this for Supabase
-
+  just_audio: ^0.9.35
 
 
 dev_dependencies:

@@ -17,6 +17,8 @@ class _UploadsScreenState extends State<UploadsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _durationMinutesController = TextEditingController();
+  final _durationSecondsController = TextEditingController();
 
   WebFile? _selectedFile;
   bool _isUploading = false;
@@ -81,6 +83,64 @@ class _UploadsScreenState extends State<UploadsScreen> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Duration*',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _durationMinutesController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Minutes',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.timer),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter minutes';
+                                }
+                                if (int.tryParse(value) == null) {
+                                  return 'Enter valid number';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _durationSecondsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Seconds',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.timer_outlined),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter seconds';
+                                }
+                                if (int.tryParse(value) == null) {
+                                  return 'Enter valid number';
+                                }
+                                final seconds = int.tryParse(value) ?? 0;
+                                if (seconds >= 60) {
+                                  return 'Must be 0-59';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -271,8 +331,13 @@ class _UploadsScreenState extends State<UploadsScreen> {
     });
 
     try {
-      // Get the next episode number (guaranteed no gaps/duplicates)
+      // Get the next episode number
       final nextEpisode = await _getNextEpisodeNumber();
+
+      // Calculate duration from user input
+      final minutes = int.tryParse(_durationMinutesController.text) ?? 0;
+      final seconds = int.tryParse(_durationSecondsController.text) ?? 0;
+      final totalDuration = (minutes * 60) + seconds;
 
       // Simulate upload progress
       _simulateProgress();
@@ -293,13 +358,13 @@ class _UploadsScreenState extends State<UploadsScreen> {
       await FirebaseFirestore.instance.collection('podcasts').add({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'audioUrl': audioUrl, // Actual Supabase URL
-        'fileName': _selectedFile!.name, // Original file name
-        'fileSize': _selectedFile!.size, // Actual file size in bytes
-        'storageProvider': 'supabase', // Correct storage provider
+        'audioUrl': audioUrl,
+        'fileName': _selectedFile!.name,
+        'fileSize': _selectedFile!.size,
+        'storageProvider': 'supabase',
         'uploadedAt': FieldValue.serverTimestamp(),
-        'duration': 0, // Will be 0 until we implement audio analysis
-        'episode': nextEpisode, // Auto-incremented episode number (no gaps)
+        'duration': totalDuration, // Now using actual duration from user input
+        'episode': nextEpisode,
         'status': 'active',
       });
 
@@ -330,13 +395,22 @@ class _UploadsScreenState extends State<UploadsScreen> {
     }
   }
 
+  void _simulateProgress() async {
+    for (int i = 0; i <= 100; i += 10) {
+      if (!_isUploading) break;
+      await Future.delayed(const Duration(milliseconds: 200));
+      setState(() {
+        _uploadProgress = i / 100;
+      });
+    }
+  }
+
   Future<int> _getNextEpisodeNumber() async {
     final counterRef = FirebaseFirestore.instance
         .collection('counters')
         .doc('podcast_episode');
 
     try {
-      // Use transaction to safely increment
       return await FirebaseFirestore.instance
           .runTransaction<int>((transaction) async {
         final counterDoc = await transaction.get(counterRef);
@@ -344,14 +418,12 @@ class _UploadsScreenState extends State<UploadsScreen> {
         int nextEpisode;
 
         if (!counterDoc.exists) {
-          // First time - create counter and return episode 1
           nextEpisode = 1;
           transaction.set(counterRef, {
-            'currentEpisode': 2, // Set to 2 because we're using 1 now
+            'currentEpisode': 2,
             'updatedAt': FieldValue.serverTimestamp(),
           });
         } else {
-          // Increment existing counter
           final currentEpisode = counterDoc.data()!['currentEpisode'] as int;
           nextEpisode = currentEpisode;
           transaction.update(counterRef, {
@@ -365,7 +437,6 @@ class _UploadsScreenState extends State<UploadsScreen> {
     } catch (e) {
       print('Error in episode counter transaction: $e');
 
-      // Fallback: try to get the max episode from existing podcasts
       try {
         final querySnapshot = await FirebaseFirestore.instance
             .collection('podcasts')
@@ -380,28 +451,8 @@ class _UploadsScreenState extends State<UploadsScreen> {
         return 1;
       } catch (fallbackError) {
         print('Fallback also failed: $fallbackError');
-        return 1; // Ultimate fallback
+        return 1;
       }
-    }
-  }
-
-  Future<int> _getAudioDuration(Uint8List audioBytes) async {
-    try {
-      // This is a simplified example - you'd need to implement actual audio analysis
-      // For now, return 0 as placeholder
-      return 0;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  void _simulateProgress() async {
-    for (int i = 0; i <= 100; i += 10) {
-      if (!_isUploading) break;
-      await Future.delayed(const Duration(milliseconds: 200));
-      setState(() {
-        _uploadProgress = i / 100;
-      });
     }
   }
 
@@ -409,6 +460,8 @@ class _UploadsScreenState extends State<UploadsScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _durationMinutesController.dispose();
+    _durationSecondsController.dispose();
     super.dispose();
   }
 }
