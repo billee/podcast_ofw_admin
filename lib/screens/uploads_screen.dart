@@ -331,7 +331,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
     });
 
     try {
-      // Get the next episode number
+      // Get the next episode number FIRST
       final nextEpisode = await _getNextEpisodeNumber();
 
       // Calculate duration from user input
@@ -339,12 +339,20 @@ class _UploadsScreenState extends State<UploadsScreen> {
       final seconds = int.tryParse(_durationSecondsController.text) ?? 0;
       final totalDuration = (minutes * 60) + seconds;
 
-      // Simulate upload progress
-      _simulateProgress();
+      // Generate filename in the EXACT format: "podcast_timestamp_title.extension"
+      final timestamp =
+          DateTime.now().millisecondsSinceEpoch; // 13-digit milliseconds
 
-      // Generate unique filename
-      String fileName =
-          'podcast_${DateTime.now().millisecondsSinceEpoch}_${_selectedFile!.name}';
+      // Create a sanitized title for the filename
+      String sanitizedTitle = _titleController.text.trim().toLowerCase();
+      sanitizedTitle = sanitizedTitle.replaceAll(RegExp(r'[^a-z0-9]'),
+          '_'); // Replace spaces/special chars with underscores
+
+      // Get file extension from original file
+      String fileExtension = _selectedFile!.name.split('.').last;
+
+      // Generate the EXACT filename format from screenshot (NO SLASH)
+      String fileName = 'podcast_${timestamp}_$sanitizedTitle.$fileExtension';
 
       // Upload to Supabase Storage
       final audioUrl = await SupabaseService.uploadFile(
@@ -354,21 +362,23 @@ class _UploadsScreenState extends State<UploadsScreen> {
         fileType: _selectedFile!.type,
       );
 
-      // Save to Firestore with CORRECT data
+      // Save to Firestore with CORRECT field names
       await FirebaseFirestore.instance.collection('podcasts').add({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'audioUrl': audioUrl,
-        'fileName': _selectedFile!.name,
+        'audioFileName':
+            fileName, // This will match exactly what's in Supabase storage
         'fileSize': _selectedFile!.size,
         'storageProvider': 'supabase',
         'uploadedAt': FieldValue.serverTimestamp(),
-        'duration': totalDuration, // Now using actual duration from user input
+        'createAt': FieldValue.serverTimestamp(),
+        'duration': totalDuration,
         'episode': nextEpisode,
-        'status': 'active',
+        'isActive': true,
       });
 
-      // Reset form
+      // Reset form and show success
       _formKey.currentState!.reset();
       setState(() {
         _selectedFile = null;

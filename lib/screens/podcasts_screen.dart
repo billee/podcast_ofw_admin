@@ -77,6 +77,7 @@ class PodcastsScreen extends StatelessWidget {
                 DataColumn(label: Text('File Size')),
                 DataColumn(label: Text('Upload Date')),
                 DataColumn(label: Text('Storage')),
+                DataColumn(label: Text('Active')),
                 DataColumn(label: Text('Actions')),
               ],
               rows: podcasts.map((podcast) {
@@ -131,9 +132,9 @@ class PodcastsScreen extends StatelessWidget {
         DataCell(
           Text(_formatFileSize(data['fileSize'] ?? 0)),
         ),
-        // Upload Date
+        // Upload Date - Use createAt instead of uploadedAt
         DataCell(
-          Text(_formatDate(data['uploadedAt'])),
+          Text(_formatDate(data['createAt'] ?? data['uploadedAt'])),
         ),
         // Storage Provider
         DataCell(
@@ -143,6 +144,13 @@ class PodcastsScreen extends StatelessWidget {
               style: const TextStyle(fontSize: 10, color: Colors.white),
             ),
             backgroundColor: _getStorageColor(data['storageProvider']),
+          ),
+        ),
+        // Active Status
+        DataCell(
+          Icon(
+            data['isActive'] == true ? Icons.check_circle : Icons.cancel,
+            color: data['isActive'] == true ? Colors.green : Colors.red,
           ),
         ),
         // Actions
@@ -227,54 +235,68 @@ class PodcastsScreen extends StatelessWidget {
     final titleController = TextEditingController(text: data['title'] ?? '');
     final descriptionController =
         TextEditingController(text: data['description'] ?? '');
+    bool isActive = data['isActive'] ?? true;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Podcast'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Podcast'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Active'),
+                  value: isActive,
+                  onChanged: (value) {
+                    setState(() {
+                      isActive = value ?? true;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('podcasts')
+                    .doc(podcastId)
+                    .update({
+                  'title': titleController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                  'isActive': isActive,
+                });
+                Navigator.pop(context);
+                Fluttertoast.showToast(msg: 'Podcast updated successfully!');
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('podcasts')
-                  .doc(podcastId)
-                  .update({
-                'title': titleController.text.trim(),
-                'description': descriptionController.text.trim(),
-              });
-              Navigator.pop(context);
-              Fluttertoast.showToast(msg: 'Podcast updated successfully!');
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }

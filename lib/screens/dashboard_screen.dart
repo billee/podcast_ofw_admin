@@ -320,6 +320,15 @@ class DashboardScreen extends StatelessWidget {
                           color: Colors.blue,
                         ),
                       ),
+                      Icon(
+                        data['isActive'] == true
+                            ? Icons.check_circle
+                            : Icons.cancel,
+                        color: data['isActive'] == true
+                            ? Colors.green
+                            : Colors.red,
+                        size: 16,
+                      ),
                     ],
                   ),
                   title: Text(data['title'] ?? 'Untitled'),
