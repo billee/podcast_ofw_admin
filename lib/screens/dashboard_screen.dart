@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import 'uploads_screen.dart';
 import 'podcasts_screen.dart';
+import 'users_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -200,6 +201,10 @@ class DashboardScreen extends StatelessWidget {
             title: const Text('Users'),
             onTap: () {
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UsersScreen()),
+              );
             },
           ),
 
