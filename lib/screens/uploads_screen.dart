@@ -24,6 +24,11 @@ class _UploadsScreenState extends State<UploadsScreen> {
   bool _isUploading = false;
   double _uploadProgress = 0.0;
 
+  // Citations management
+  final List<TextEditingController> _citationControllers = [
+    TextEditingController()
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,6 +147,48 @@ class _UploadsScreenState extends State<UploadsScreen> {
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Citations Section
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Citations',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle,
+                                color: Colors.green),
+                            onPressed: _addCitationField,
+                            tooltip: 'Add another citation',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Add references, sources, or citations for this podcast',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ..._buildCitationFields(),
                     ],
                   ),
                 ),
@@ -283,6 +330,53 @@ class _UploadsScreenState extends State<UploadsScreen> {
     );
   }
 
+  List<Widget> _buildCitationFields() {
+    return List.generate(_citationControllers.length, (index) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _citationControllers[index],
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Citation ${index + 1}',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.format_quote),
+                  suffixIcon: _citationControllers.length > 1
+                      ? IconButton(
+                          icon: const Icon(Icons.remove_circle,
+                              color: Colors.red),
+                          onPressed: () => _removeCitationField(index),
+                          tooltip: 'Remove citation',
+                        )
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _addCitationField() {
+    setState(() {
+      _citationControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeCitationField(int index) {
+    if (_citationControllers.length > 1) {
+      setState(() {
+        _citationControllers[index].dispose();
+        _citationControllers.removeAt(index);
+      });
+    }
+  }
+
   Future<void> _pickAudioFile() async {
     try {
       final webFile = await WebFilePicker.pickFile(acceptedTypes: [
@@ -362,7 +456,13 @@ class _UploadsScreenState extends State<UploadsScreen> {
         fileType: _selectedFile!.type,
       );
 
-      // Save to Firestore with CORRECT field names
+      // Collect non-empty citations
+      final citations = _citationControllers
+          .map((controller) => controller.text.trim())
+          .where((citation) => citation.isNotEmpty)
+          .toList();
+
+      // Save to Firestore with CORRECT field names including citations
       await FirebaseFirestore.instance.collection('podcasts').add({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
@@ -376,6 +476,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
         'duration': totalDuration,
         'episode': nextEpisode,
         'isActive': true,
+        'citations': citations, // Add citations array
       });
 
       // Reset form and show success
@@ -384,6 +485,12 @@ class _UploadsScreenState extends State<UploadsScreen> {
         _selectedFile = null;
         _isUploading = false;
         _uploadProgress = 0.0;
+        // Reset citations but keep one empty field
+        for (var controller in _citationControllers) {
+          controller.dispose();
+        }
+        _citationControllers.clear();
+        _citationControllers.add(TextEditingController());
       });
 
       Fluttertoast.showToast(
@@ -472,6 +579,10 @@ class _UploadsScreenState extends State<UploadsScreen> {
     _descriptionController.dispose();
     _durationMinutesController.dispose();
     _durationSecondsController.dispose();
+    // Dispose all citation controllers
+    for (var controller in _citationControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 }
