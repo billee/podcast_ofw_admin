@@ -3,8 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
-class PodcastsScreen extends StatelessWidget {
+class PodcastsScreen extends StatefulWidget {
   const PodcastsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<PodcastsScreen> createState() => _PodcastsScreenState();
+}
+
+class _PodcastsScreenState extends State<PodcastsScreen> {
+  // Add state for sort order
+  bool _sortAscending =
+      false; // false = descending (newest first), true = ascending (oldest first)
 
   @override
   Widget build(BuildContext context) {
@@ -18,12 +27,50 @@ class PodcastsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'All Podcasts',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+            // Header with sort controls
+            Row(
+              children: [
+                const Text(
+                  'All Podcasts',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                // Sort order dropdown
+                Row(
+                  children: [
+                    const Text(
+                      'Sort by Episode:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    DropdownButton<bool>(
+                      value: _sortAscending,
+                      icon: const Icon(Icons.sort),
+                      items: const [
+                        DropdownMenuItem<bool>(
+                          value: false,
+                          child: Text('Newest First'),
+                        ),
+                        DropdownMenuItem<bool>(
+                          value: true,
+                          child: Text('Oldest First'),
+                        ),
+                      ],
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          _sortAscending = newValue ?? false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -39,7 +86,8 @@ class PodcastsScreen extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('podcasts')
-          .orderBy('episode', descending: false)
+          .orderBy('episode',
+              descending: !_sortAscending) // Use the sort order state
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

@@ -551,7 +551,9 @@ class _UploadsScreenState extends State<UploadsScreen> {
             .collection('podcasts')
             .count()
             .get();
-        return countQuery.count + 1;
+        // Fix: Handle nullable count by providing a default value
+        final count = countQuery.count ?? 0;
+        return count + 1;
       } catch (countError) {
         print('Count also failed: $countError');
         return 1;
