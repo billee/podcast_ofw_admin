@@ -28,6 +28,9 @@ class _UploadsScreenState extends State<UploadsScreen> {
   final List<TextEditingController> _citationControllers = [
     TextEditingController()
   ];
+  final List<double> _citationHeights = [
+    100.0
+  ]; // Initial height for citation textareas
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +185,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Add references, sources, or citations for this podcast',
+                          'Add references, sources, or citations for this podcast. Drag the bottom-right corner to resize text areas.',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -338,28 +341,89 @@ class _UploadsScreenState extends State<UploadsScreen> {
   List<Widget> _buildCitationFields() {
     return List.generate(_citationControllers.length, (index) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 12.0),
-        child: Row(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: TextFormField(
-                controller: _citationControllers[index],
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: 'Citation ${index + 1}',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.format_quote),
-                  suffixIcon: _citationControllers.length > 1
-                      ? IconButton(
-                          icon: const Icon(Icons.remove_circle,
-                              color: Colors.red),
-                          onPressed: () => _removeCitationField(index),
-                          tooltip: 'Remove citation',
-                        )
-                      : null,
+            Row(
+              children: [
+                Text(
+                  'Citation ${index + 1}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const Spacer(),
+                if (_citationControllers.length > 1)
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle,
+                        color: Colors.red, size: 20),
+                    onPressed: () => _removeCitationField(index),
+                    tooltip: 'Remove citation',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Resizable text area
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SizedBox(
+                height: _citationHeights[index],
+                child: TextField(
+                  controller: _citationControllers[index],
+                  maxLines: null, // Allows unlimited lines
+                  expands:
+                      true, // Makes the field expand to fill available height
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.all(12),
+                    border: InputBorder.none,
+                    hintText: 'Enter citation text...',
+                  ),
+                  onChanged: (text) {
+                    // Auto-resize based on content (optional)
+                    _autoResizeCitationField(index, text);
+                  },
                 ),
               ),
+            ),
+            // Manual resize handle
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onVerticalDragUpdate: (details) {
+                    setState(() {
+                      _citationHeights[index] =
+                          (_citationHeights[index] + details.delta.dy)
+                              .clamp(60.0, 400.0);
+                    });
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.unfold_more, size: 16, color: Colors.grey),
+                        SizedBox(width: 4),
+                        Text(
+                          'Drag to resize',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -367,9 +431,22 @@ class _UploadsScreenState extends State<UploadsScreen> {
     });
   }
 
+  void _autoResizeCitationField(int index, String text) {
+    // Optional: Auto-resize based on line count
+    final lineCount = text.split('\n').length;
+    final newHeight = (lineCount * 20.0 + 40.0).clamp(60.0, 400.0);
+
+    if ((newHeight - _citationHeights[index]).abs() > 10) {
+      setState(() {
+        _citationHeights[index] = newHeight;
+      });
+    }
+  }
+
   void _addCitationField() {
     setState(() {
       _citationControllers.add(TextEditingController());
+      _citationHeights.add(100.0); // Default height for new citation field
     });
   }
 
@@ -378,6 +455,7 @@ class _UploadsScreenState extends State<UploadsScreen> {
       setState(() {
         _citationControllers[index].dispose();
         _citationControllers.removeAt(index);
+        _citationHeights.removeAt(index);
       });
     }
   }
@@ -496,6 +574,8 @@ class _UploadsScreenState extends State<UploadsScreen> {
         }
         _citationControllers.clear();
         _citationControllers.add(TextEditingController());
+        _citationHeights.clear();
+        _citationHeights.add(100.0);
       });
 
       Fluttertoast.showToast(
