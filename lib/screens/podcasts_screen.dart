@@ -118,12 +118,13 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                 (Set<MaterialState> states) => Colors.blue[50],
               ),
               columns: const [
+                DataColumn(label: Text('ID')),
                 DataColumn(label: Text('Episode')),
                 DataColumn(label: Text('Title')),
-                DataColumn(label: Text('Description')),
                 DataColumn(label: Text('Duration')),
                 DataColumn(label: Text('File Size')),
                 DataColumn(label: Text('Upload Date')),
+                DataColumn(label: Text('Citations')), // Added Citations column
                 DataColumn(label: Text('Storage')),
                 DataColumn(label: Text('Active')),
                 DataColumn(label: Text('Actions')),
@@ -141,8 +142,24 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
 
   DataRow _buildDataRow(
       BuildContext context, String podcastId, Map<String, dynamic> data) {
+    final citations = List<String>.from(data['citations'] ?? []);
+
     return DataRow(
       cells: [
+        // ID Column - Display the Firestore document ID
+        DataCell(
+          SizedBox(
+            width: 120,
+            child: Text(
+              _truncateId(podcastId),
+              style: const TextStyle(
+                fontSize: 10,
+                fontFamily: 'Monospace',
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
         // Episode
         DataCell(
           Text(
@@ -153,20 +170,9 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         // Title
         DataCell(
           SizedBox(
-            width: 150,
-            child: Text(
-              data['title']?.toString() ?? 'No Title',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        ),
-        // Description
-        DataCell(
-          SizedBox(
             width: 200,
             child: Text(
-              data['description']?.toString() ?? 'No Description',
+              data['title']?.toString() ?? 'No Title',
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -183,6 +189,16 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         // Upload Date - Use createAt instead of uploadedAt
         DataCell(
           Text(_formatDate(data['createAt'] ?? data['uploadedAt'])),
+        ),
+        // Citations Count
+        DataCell(
+          Chip(
+            label: Text(
+              '${citations.length}',
+              style: const TextStyle(fontSize: 10, color: Colors.white),
+            ),
+            backgroundColor: citations.isNotEmpty ? Colors.blue : Colors.grey,
+          ),
         ),
         // Storage Provider
         DataCell(
@@ -230,6 +246,14 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         ),
       ],
     );
+  }
+
+  String _truncateId(String id) {
+    // Truncate long IDs for better display, show first 8 and last 4 characters
+    if (id.length > 15) {
+      return '${id.substring(0, 8)}...${id.substring(id.length - 4)}';
+    }
+    return id;
   }
 
   String _formatDuration(int seconds) {
@@ -285,6 +309,25 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         TextEditingController(text: data['description'] ?? '');
     bool isActive = data['isActive'] ?? true;
 
+    // Citations management for edit dialog
+    final List<TextEditingController> citationControllers = [];
+    final List<double> citationHeights = [];
+    final List<String> initialCitations =
+        List<String>.from(data['citations'] ?? []);
+
+    // Initialize citation controllers with existing citations
+    for (String citation in initialCitations) {
+      citationControllers.add(TextEditingController(text: citation));
+      // Set initial height based on content length
+      final lineCount = citation.split('\n').length;
+      citationHeights.add((lineCount * 20.0 + 40.0).clamp(60.0, 200.0));
+    }
+    // Add one empty citation field if there are no citations
+    if (citationControllers.isEmpty) {
+      citationControllers.add(TextEditingController());
+      citationHeights.add(100.0);
+    }
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -311,6 +354,40 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Citations Section
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Citations',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle,
+                              color: Colors.green, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              citationControllers.add(TextEditingController());
+                              citationHeights.add(100.0);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ..._buildCitationFieldsForEdit(
+                        citationControllers, citationHeights, setState),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
                 CheckboxListTile(
                   title: const Text('Active'),
                   value: isActive,
@@ -330,6 +407,12 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
             ),
             TextButton(
               onPressed: () async {
+                // Collect non-empty citations
+                final citations = citationControllers
+                    .map((controller) => controller.text.trim())
+                    .where((citation) => citation.isNotEmpty)
+                    .toList();
+
                 await FirebaseFirestore.instance
                     .collection('podcasts')
                     .doc(podcastId)
@@ -337,7 +420,14 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                   'title': titleController.text.trim(),
                   'description': descriptionController.text.trim(),
                   'isActive': isActive,
+                  'citations': citations, // Update citations
                 });
+
+                // Dispose controllers
+                for (var controller in citationControllers) {
+                  controller.dispose();
+                }
+
                 Navigator.pop(context);
                 Fluttertoast.showToast(msg: 'Podcast updated successfully!');
               },
@@ -347,6 +437,87 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildCitationFieldsForEdit(
+      List<TextEditingController> controllers,
+      List<double> heights,
+      StateSetter setState) {
+    return List.generate(controllers.length, (index) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Citation ${index + 1}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const Spacer(),
+                if (controllers.length > 1)
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle,
+                        color: Colors.red, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        controllers[index].dispose();
+                        controllers.removeAt(index);
+                        heights.removeAt(index);
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Expandable text area for citations
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SizedBox(
+                height: heights[index],
+                child: TextField(
+                  controller: controllers[index],
+                  maxLines: null, // Allows unlimited lines
+                  expands:
+                      true, // Makes the field expand to fill available height
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.all(12),
+                    border: InputBorder.none,
+                    hintText: 'Enter citation text...',
+                  ),
+                  onChanged: (text) {
+                    // Auto-resize based on content
+                    _autoResizeCitationField(index, heights, text, setState);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _autoResizeCitationField(
+      int index, List<double> heights, String text, StateSetter setState) {
+    // Auto-resize based on line count
+    final lineCount = text.split('\n').length;
+    final newHeight = (lineCount * 20.0 + 40.0).clamp(60.0, 400.0);
+
+    if ((newHeight - heights[index]).abs() > 10) {
+      setState(() {
+        heights[index] = newHeight;
+      });
+    }
   }
 
   void _showDeleteDialog(BuildContext context, String podcastId, String title) {
