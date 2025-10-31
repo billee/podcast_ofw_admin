@@ -80,14 +80,20 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 _buildStatCard(
                   title: 'Total Podcasts',
-                  value: '4',
+                  stream: FirebaseFirestore.instance
+                      .collection('podcasts')
+                      .snapshots()
+                      .map((snapshot) => snapshot.docs.length.toString()),
                   icon: Icons.podcasts,
                   color: Colors.green,
                 ),
                 const SizedBox(width: 16),
                 _buildStatCard(
-                  title: 'Active Users',
-                  value: '0',
+                  title: 'Total Users',
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .snapshots()
+                      .map((snapshot) => snapshot.docs.length.toString()),
                   icon: Icons.people,
                   color: Colors.blue,
                 ),
@@ -95,28 +101,12 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Podcast Management Section
-            const Text(
-              'Podcast Management',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _buildPodcastList(),
-            ),
+            // Removed Podcast Management Section
+
+            // Add some extra space at the bottom
+            const Spacer(),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Add new podcast functionality
-          _showAddPodcastDialog(context);
-        },
-        backgroundColor: Colors.blue[700],
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
@@ -169,7 +159,7 @@ class DashboardScreen extends StatelessWidget {
             },
           ),
 
-          // Uploads Menu Item - ADD THIS
+          // Uploads Menu Item
           ListTile(
             leading: const Icon(Icons.upload, color: Colors.teal),
             title: const Text('Uploads'),
@@ -248,7 +238,7 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildStatCard({
     required String title,
-    required String value,
+    required Stream<String> stream,
     required IconData icon,
     required Color color,
   }) {
@@ -257,108 +247,48 @@ class DashboardScreen extends StatelessWidget {
         elevation: 2,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 30, color: color),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
+          child: StreamBuilder<String>(
+            stream: stream,
+            builder: (context, snapshot) {
+              final value = snapshot.hasData ? snapshot.data! : '0';
+              final isLoading =
+                  snapshot.connectionState == ConnectionState.waiting;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, size: 30, color: color),
+                      const Spacer(),
+                      if (isLoading)
+                        const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildPodcastList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('podcasts').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final podcasts = snapshot.data?.docs ?? [];
-
-        if (podcasts.isEmpty) {
-          return const Center(
-            child: Text(
-              'No podcasts found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          );
-        }
-
-        return ListView.builder(
-            itemCount: podcasts.length,
-            itemBuilder: (context, index) {
-              final podcast = podcasts[index];
-              final data = podcast.data() as Map<String, dynamic>;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'E${data['episode'] ?? '?'}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      Icon(
-                        data['isActive'] == true
-                            ? Icons.check_circle
-                            : Icons.cancel,
-                        color: data['isActive'] == true
-                            ? Colors.green
-                            : Colors.red,
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                  title: Text(data['title'] ?? 'Untitled'),
-                  subtitle: Text(data['description'] ?? 'No description'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () {
-                          _showEditPodcastDialog(context, podcast.id, data);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          _deletePodcast(context, podcast.id);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            });
-      },
     );
   }
 
