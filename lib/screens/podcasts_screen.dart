@@ -15,6 +15,32 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   bool _sortAscending =
       false; // false = descending (newest first), true = ascending (oldest first)
 
+  // Search functionality
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // Pagination
+  int _currentPage = 0;
+  final int _pageSize = 10; // Number of items per page
+  int _totalItems = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+        _currentPage = 0; // Reset to first page when searching
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,9 +99,46 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // Search Box
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: const InputDecoration(
+                          hintText: 'Search podcasts by title...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             Expanded(
               child: _buildPodcastsTable(context),
             ),
+
+            // Pagination Controls
+            _buildPaginationControls(),
           ],
         ),
       ),
@@ -86,8 +149,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('podcasts')
-          .orderBy('episode',
-              descending: !_sortAscending) // Use the sort order state
+          .orderBy('episode', descending: !_sortAscending)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -98,45 +160,164 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final podcasts = snapshot.data?.docs ?? [];
+        final allPodcasts = snapshot.data?.docs ?? [];
 
-        if (podcasts.isEmpty) {
-          return const Center(
-            child: Text(
-              'No podcasts found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+        // Apply search filter
+        final filteredPodcasts = allPodcasts.where((podcast) {
+          if (_searchQuery.isEmpty) return true;
+          final data = podcast.data() as Map<String, dynamic>;
+          final title = data['title']?.toString().toLowerCase() ?? '';
+          return title.contains(_searchQuery);
+        }).toList();
+
+        // Update total items count
+        _totalItems = filteredPodcasts.length;
+
+        // Calculate pagination
+        final totalPages = (_totalItems / _pageSize).ceil();
+        final startIndex = _currentPage * _pageSize;
+        final endIndex = startIndex + _pageSize;
+        final paginatedPodcasts = filteredPodcasts.sublist(
+          startIndex.clamp(0, filteredPodcasts.length),
+          endIndex.clamp(0, filteredPodcasts.length),
+        );
+
+        if (filteredPodcasts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.search_off, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  _searchQuery.isEmpty
+                      ? 'No podcasts found'
+                      : 'No podcasts found for "$_searchQuery"',
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ],
             ),
           );
         }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.resolveWith<Color?>(
-                (Set<MaterialState> states) => Colors.blue[50],
+        return Column(
+          children: [
+            // Results count
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Text(
+                    'Showing ${paginatedPodcasts.length} of $_totalItems podcasts',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Chip(
+                      label: Text('Search: "$_searchQuery"'),
+                      backgroundColor: Colors.blue[50],
+                    ),
+                  ],
+                ],
               ),
-              columns: const [
-                DataColumn(label: Text('ID')),
-                DataColumn(label: Text('Episode')),
-                DataColumn(label: Text('Title')),
-                DataColumn(label: Text('Duration')),
-                DataColumn(label: Text('File Size')),
-                DataColumn(label: Text('Upload Date')),
-                DataColumn(label: Text('Citations')), // Added Citations column
-                DataColumn(label: Text('Storage')),
-                DataColumn(label: Text('Active')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: podcasts.map((podcast) {
-                final data = podcast.data() as Map<String, dynamic>;
-                return _buildDataRow(context, podcast.id, data);
-              }).toList(),
             ),
-          ),
+
+            // Table
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowColor: MaterialStateProperty.resolveWith<Color?>(
+                      (Set<MaterialState> states) => Colors.blue[50],
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('ID')),
+                      DataColumn(label: Text('Episode')),
+                      DataColumn(label: Text('Title')),
+                      DataColumn(label: Text('Duration')),
+                      DataColumn(label: Text('File Size')),
+                      DataColumn(label: Text('Upload Date')),
+                      DataColumn(label: Text('Citations')),
+                      DataColumn(label: Text('Storage')),
+                      DataColumn(label: Text('Active')),
+                      DataColumn(label: Text('Actions')),
+                    ],
+                    rows: paginatedPodcasts.map((podcast) {
+                      final data = podcast.data() as Map<String, dynamic>;
+                      return _buildDataRow(context, podcast.id, data);
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildPaginationControls() {
+    final totalPages = (_totalItems / _pageSize).ceil();
+    final hasPreviousPage = _currentPage > 0;
+    final hasNextPage = _currentPage < totalPages - 1 && totalPages > 0;
+
+    if (totalPages <= 1)
+      return const SizedBox(); // Hide pagination if only one page
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Previous button
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios, size: 16),
+              onPressed: hasPreviousPage
+                  ? () {
+                      setState(() {
+                        _currentPage--;
+                      });
+                    }
+                  : null,
+            ),
+            const SizedBox(width: 8),
+
+            // Page info
+            Text(
+              'Page ${_currentPage + 1} of $totalPages',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+
+            // Next button
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios, size: 16),
+              onPressed: hasNextPage
+                  ? () {
+                      setState(() {
+                        _currentPage++;
+                      });
+                    }
+                  : null,
+            ),
+
+            const Spacer(),
+
+            // Items per page info
+            Text(
+              '$_pageSize per page',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
