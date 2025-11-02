@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../components/rich_text_citation_editor.dart';
+import '../components/edit_podcast_dialog.dart';
 
 class PodcastsScreen extends StatefulWidget {
   const PodcastsScreen({Key? key}) : super(key: key);
@@ -371,14 +373,17 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         DataCell(
           Text(_formatDate(data['createAt'] ?? data['uploadedAt'])),
         ),
-        // Citations Count
+        // Citations Count with preview
         DataCell(
-          Chip(
-            label: Text(
-              '${citations.length}',
-              style: const TextStyle(fontSize: 10, color: Colors.white),
+          GestureDetector(
+            onTap: () => _showCitationsPreviewDialog(context, citations),
+            child: Chip(
+              label: Text(
+                '${citations.length}',
+                style: const TextStyle(fontSize: 10, color: Colors.white),
+              ),
+              backgroundColor: citations.isNotEmpty ? Colors.blue : Colors.grey,
             ),
-            backgroundColor: citations.isNotEmpty ? Colors.blue : Colors.grey,
           ),
         ),
         // Storage Provider
@@ -405,7 +410,13 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
               IconButton(
                 icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
                 onPressed: () {
-                  _showEditDialog(context, podcastId, data);
+                  showDialog(
+                    context: context,
+                    builder: (context) => EditPodcastDialog(
+                      podcastId: podcastId,
+                      data: data,
+                    ),
+                  );
                 },
               ),
               IconButton(
@@ -490,23 +501,11 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         TextEditingController(text: data['description'] ?? '');
     bool isActive = data['isActive'] ?? true;
 
-    // Citations management for edit dialog
-    final List<TextEditingController> citationControllers = [];
-    final List<double> citationHeights = [];
-    final List<String> initialCitations =
-        List<String>.from(data['citations'] ?? []);
-
-    // Initialize citation controllers with existing citations
-    for (String citation in initialCitations) {
-      citationControllers.add(TextEditingController(text: citation));
-      // Set initial height based on content length
-      final lineCount = citation.split('\n').length;
-      citationHeights.add((lineCount * 20.0 + 40.0).clamp(60.0, 200.0));
-    }
+    // Citations management for edit dialog - now using rich text
+    final List<String> citations = List<String>.from(data['citations'] ?? []);
     // Add one empty citation field if there are no citations
-    if (citationControllers.isEmpty) {
-      citationControllers.add(TextEditingController());
-      citationHeights.add(100.0);
+    if (citations.isEmpty) {
+      citations.add('');
     }
 
     showDialog(
@@ -536,7 +535,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Citations Section
+                // Citations Section - Using simple text fields for dialog
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -555,16 +554,19 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                               color: Colors.green, size: 20),
                           onPressed: () {
                             setState(() {
-                              citationControllers.add(TextEditingController());
-                              citationHeights.add(100.0);
+                              citations.add('');
                             });
                           },
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    ..._buildCitationFieldsForEdit(
-                        citationControllers, citationHeights, setState),
+                    const Text(
+                      'Note: Rich text formatting is available in the upload page. Here you can edit the plain text content.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._buildSimpleCitationFieldsForEdit(citations, setState),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -588,10 +590,9 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
             ),
             TextButton(
               onPressed: () async {
-                // Collect non-empty citations
-                final citations = citationControllers
-                    .map((controller) => controller.text.trim())
-                    .where((citation) => citation.isNotEmpty)
+                // Collect non-empty citations (rich text format)
+                final finalCitations = citations
+                    .where((citation) => citation.trim().isNotEmpty)
                     .toList();
 
                 await FirebaseFirestore.instance
@@ -601,13 +602,8 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                   'title': titleController.text.trim(),
                   'description': descriptionController.text.trim(),
                   'isActive': isActive,
-                  'citations': citations, // Update citations
+                  'citations': finalCitations, // Update citations
                 });
-
-                // Dispose controllers
-                for (var controller in citationControllers) {
-                  controller.dispose();
-                }
 
                 Navigator.pop(context);
                 Fluttertoast.showToast(msg: 'Podcast updated successfully!');
@@ -620,11 +616,22 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
     );
   }
 
-  List<Widget> _buildCitationFieldsForEdit(
-      List<TextEditingController> controllers,
-      List<double> heights,
-      StateSetter setState) {
-    return List.generate(controllers.length, (index) {
+  List<Widget> _buildSimpleCitationFieldsForEdit(
+      List<String> citations, StateSetter setState) {
+    // Convert rich text to plain text for editing
+    final List<TextEditingController> controllers = citations.map((citation) {
+      String plainText = citation;
+      try {
+        // Try to extract plain text from rich text JSON
+        plainText = richTextToPlainText(citation);
+      } catch (e) {
+        // If it's not rich text JSON, use as is
+        plainText = citation;
+      }
+      return TextEditingController(text: plainText);
+    }).toList();
+
+    return List.generate(citations.length, (index) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12.0),
         child: Column(
@@ -640,65 +647,35 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                   ),
                 ),
                 const Spacer(),
-                if (controllers.length > 1)
+                if (citations.length > 1)
                   IconButton(
                     icon: const Icon(Icons.remove_circle,
                         color: Colors.red, size: 18),
                     onPressed: () {
                       setState(() {
                         controllers[index].dispose();
-                        controllers.removeAt(index);
-                        heights.removeAt(index);
+                        citations.removeAt(index);
                       });
                     },
                   ),
               ],
             ),
             const SizedBox(height: 8),
-            // Expandable text area for citations
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
-                borderRadius: BorderRadius.circular(4),
+            TextField(
+              controller: controllers[index],
+              maxLines: 3,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Enter citation text...',
               ),
-              child: SizedBox(
-                height: heights[index],
-                child: TextField(
-                  controller: controllers[index],
-                  maxLines: null, // Allows unlimited lines
-                  expands:
-                      true, // Makes the field expand to fill available height
-                  textAlignVertical: TextAlignVertical.top,
-                  decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.all(12),
-                    border: InputBorder.none,
-                    hintText: 'Enter citation text...',
-                  ),
-                  onChanged: (text) {
-                    // Auto-resize based on content
-                    _autoResizeCitationField(index, heights, text, setState);
-                  },
-                ),
-              ),
+              onChanged: (text) {
+                citations[index] = text; // Store as plain text
+              },
             ),
-            const SizedBox(height: 8),
           ],
         ),
       );
     });
-  }
-
-  void _autoResizeCitationField(
-      int index, List<double> heights, String text, StateSetter setState) {
-    // Auto-resize based on line count
-    final lineCount = text.split('\n').length;
-    final newHeight = (lineCount * 20.0 + 40.0).clamp(60.0, 400.0);
-
-    if ((newHeight - heights[index]).abs() > 10) {
-      setState(() {
-        heights[index] = newHeight;
-      });
-    }
   }
 
   void _showDeleteDialog(BuildContext context, String podcastId, String title) {
@@ -750,6 +727,56 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
               },
               child: const Text('Copy'),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _showCitationsPreviewDialog(BuildContext context, List<String> citations) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Citations (${citations.length})'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: citations.isEmpty
+              ? const Center(child: Text('No citations available'))
+              : ListView.builder(
+                  itemCount: citations.length,
+                  itemBuilder: (context, index) {
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Citation ${index + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Use RichTextViewer to display formatted content
+                            RichTextViewer(
+                              richTextJson: citations[index],
+                              height: 100,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
