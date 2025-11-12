@@ -26,6 +26,9 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   final int _pageSize = 10; // Number of items per page
   int _totalItems = 0;
 
+  // Citation heights for edit dialog
+  final List<double> _citationHeights = [];
+
   @override
   void initState() {
     super.initState();
@@ -631,6 +634,16 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
       return TextEditingController(text: plainText);
     }).toList();
 
+    // Initialize heights if needed
+    while (_citationHeights.length < citations.length) {
+      _citationHeights.add(100.0);
+    }
+    
+    // Remove excess heights if citations were removed
+    if (_citationHeights.length > citations.length) {
+      _citationHeights.removeRange(citations.length, _citationHeights.length);
+    }
+
     return List.generate(citations.length, (index) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12.0),
@@ -655,22 +668,70 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                       setState(() {
                         controllers[index].dispose();
                         citations.removeAt(index);
+                        _citationHeights.removeAt(index);
                       });
                     },
                   ),
               ],
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: controllers[index],
-              maxLines: 3,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Enter citation text...',
+            
+            // Resizable text field container
+            Container(
+              height: _citationHeights[index],
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(4),
               ),
-              onChanged: (text) {
-                citations[index] = text; // Store as plain text
-              },
+              child: TextField(
+                controller: controllers[index],
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.all(12),
+                  border: InputBorder.none,
+                  hintText: 'Enter citation text...',
+                ),
+                onChanged: (text) {
+                  citations[index] = text; // Store as plain text
+                },
+              ),
+            ),
+            
+            const SizedBox(height: 4),
+            
+            // Resize handle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onVerticalDragUpdate: (details) {
+                    setState(() {
+                      _citationHeights[index] = (_citationHeights[index] + details.delta.dy)
+                          .clamp(60.0, 300.0);
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.unfold_more, size: 16, color: Colors.grey),
+                        SizedBox(width: 4),
+                        Text(
+                          'Drag to resize',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

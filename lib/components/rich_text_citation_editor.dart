@@ -25,6 +25,7 @@ class RichTextCitationEditor extends StatefulWidget {
 class _RichTextCitationEditorState extends State<RichTextCitationEditor> {
   late QuillController _controller;
   final FocusNode _focusNode = FocusNode();
+  double _editorHeight = 150.0;
 
   @override
   void initState() {
@@ -141,7 +142,7 @@ class _RichTextCitationEditorState extends State<RichTextCitationEditor> {
 
             // Rich text editor
             Container(
-              height: 150,
+              height: _editorHeight,
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: const BorderRadius.only(
@@ -159,7 +160,42 @@ class _RichTextCitationEditorState extends State<RichTextCitationEditor> {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            
+            // Resize handle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onVerticalDragUpdate: (details) {
+                    setState(() {
+                      _editorHeight = (_editorHeight + details.delta.dy)
+                          .clamp(100.0, 400.0);
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.unfold_more, size: 16, color: Colors.grey),
+                        SizedBox(width: 4),
+                        Text(
+                          'Drag to resize',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 4),
             
             // Help text
             const Text(
