@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../screens/uploads_screen.dart';
+import '../screens/users_screen.dart';
 import '../components/rich_text_citation_editor.dart';
 import '../components/edit_podcast_dialog.dart';
 
@@ -27,6 +31,8 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   final int _pageSize = 10; // Number of items per page
   int _totalItems = 0;
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   void initState() {
     super.initState();
@@ -47,10 +53,18 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey, // Added key to access scaffold state
       appBar: AppBar(
         title: const Text('Podcasts Management'),
         backgroundColor: Colors.blue[700],
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            _scaffoldKey.currentState?.openDrawer(); // Fixed: using scaffold key
+          },
+        ),
       ),
+      drawer: _buildDrawer(context),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -143,6 +157,130 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    final authService = Provider.of<AuthService>(context);
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          // Drawer Header
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue[700],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.admin_panel_settings,
+                  size: 48,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'OFW Podcasts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  authService.currentUser?.email ?? 'Admin',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Dashboard Menu Item
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: Colors.blue),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.pushReplacementNamed(context, '/dashboard');
+            },
+          ),
+
+          // Uploads Menu Item
+          ListTile(
+            leading: const Icon(Icons.upload, color: Colors.teal),
+            title: const Text('Uploads'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UploadsScreen()),
+              );
+            },
+          ),
+
+          // Podcasts Menu Item (Current Page)
+          ListTile(
+            leading: const Icon(Icons.podcasts, color: Colors.green),
+            title: const Text('Podcasts'),
+            tileColor: Colors.blue[50], // Highlight current page
+            onTap: () {
+              Navigator.pop(context); // Just close drawer since we're already here
+            },
+          ),
+
+          // Users Menu Item
+          ListTile(
+            leading: const Icon(Icons.people, color: Colors.orange),
+            title: const Text('Users'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UsersScreen()),
+              );
+            },
+          ),
+
+          // Analytics Menu Item
+          ListTile(
+            leading: const Icon(Icons.analytics, color: Colors.purple),
+            title: const Text('Analytics'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              // TODO: Implement analytics screen
+            },
+          ),
+
+          // Settings Menu Item
+          ListTile(
+            leading: const Icon(Icons.settings, color: Colors.grey),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              // TODO: Implement settings screen
+            },
+          ),
+
+          // Divider
+          const Divider(),
+
+          // Logout Menu Item
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout'),
+            onTap: () async {
+              Navigator.pop(context); // Close drawer
+              await authService.logout();
+            },
+          ),
+        ],
       ),
     );
   }

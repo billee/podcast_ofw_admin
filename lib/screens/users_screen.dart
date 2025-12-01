@@ -2,6 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import 'dashboard_screen.dart';
+import 'uploads_screen.dart';
+import 'podcasts_screen.dart';
 
 class UsersScreen extends StatelessWidget {
   const UsersScreen({Key? key}) : super(key: key);
@@ -12,7 +17,14 @@ class UsersScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Users Management'),
         backgroundColor: Colors.blue[700],
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
       ),
+      drawer: _buildDrawer(context),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -31,6 +43,131 @@ class UsersScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    final authService = Provider.of<AuthService>(context);
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          // Drawer Header
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue[700],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.admin_panel_settings,
+                  size: 48,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'OFW Podcasts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  authService.currentUser?.email ?? 'Admin',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Dashboard Menu Item
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: Colors.blue),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              );
+            },
+          ),
+
+          // Uploads Menu Item
+          ListTile(
+            leading: const Icon(Icons.upload, color: Colors.teal),
+            title: const Text('Uploads'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UploadsScreen()),
+              );
+            },
+          ),
+
+          // Podcasts Menu Item
+          ListTile(
+            leading: const Icon(Icons.podcasts, color: Colors.green),
+            title: const Text('Podcasts'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PodcastsScreen()),
+              );
+            },
+          ),
+
+          // Users Menu Item (Current Page)
+          ListTile(
+            leading: const Icon(Icons.people, color: Colors.orange),
+            title: const Text('Users'),
+            tileColor: Colors.blue[50],
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Analytics Menu Item
+          ListTile(
+            leading: const Icon(Icons.analytics, color: Colors.purple),
+            title: const Text('Analytics'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Settings Menu Item
+          ListTile(
+            leading: const Icon(Icons.settings, color: Colors.grey),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+
+          // Divider
+          const Divider(),
+
+          // Logout Menu Item
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout'),
+            onTap: () async {
+              Navigator.pop(context);
+              await authService.logout();
+            },
+          ),
+        ],
       ),
     );
   }
