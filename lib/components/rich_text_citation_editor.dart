@@ -169,8 +169,7 @@ class _RichTextCitationEditorState extends State<RichTextCitationEditor> {
                 GestureDetector(
                   onVerticalDragUpdate: (details) {
                     setState(() {
-                      _editorHeight = (_editorHeight + details.delta.dy)
-                          .clamp(100.0, 400.0);
+                      _editorHeight = (_editorHeight + details.delta.dy).clamp(100.0, double.infinity);
                     });
                   },
                   child: Container(

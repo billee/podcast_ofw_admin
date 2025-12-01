@@ -96,83 +96,148 @@ class _EditPodcastDialogState extends State<EditPodcastDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Podcast'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 600,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16.0),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+          minWidth: MediaQuery.of(context).size.width * 0.9,
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.blue[700],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8.0),
+                  topRight: Radius.circular(8.0),
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Citations Section
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Citations',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle,
-                            color: Colors.green, size: 20),
-                        onPressed: _addCitation,
-                      ),
-                    ],
+                  const Icon(Icons.edit, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Edit Podcast',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  ..._buildCitationFields(),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ),
 
-              CheckboxListTile(
-                title: const Text('Active'),
-                value: _isActive,
-                onChanged: (value) {
-                  setState(() {
-                    _isActive = value ?? true;
-                  });
-                },
+            // Scrollable content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Citations Section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Citations',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle,
+                                  color: Colors.green, size: 20),
+                              onPressed: _addCitation,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ..._buildCitationFields(),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    CheckboxListTile(
+                      title: const Text('Active'),
+                      value: _isActive,
+                      onChanged: (value) {
+                        setState(() {
+                          _isActive = value ?? true;
+                        });
+                      },
+                    ),
+                    
+                    // Extra space at bottom
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+
+            // Footer with buttons
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(8.0),
+                  bottomRight: Radius.circular(8.0),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _savePodcast,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                    ),
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: _savePodcast,
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 
