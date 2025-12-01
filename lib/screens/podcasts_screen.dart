@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../components/rich_text_citation_editor.dart';
 import '../components/edit_podcast_dialog.dart';
 
@@ -25,9 +26,6 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   int _currentPage = 0;
   final int _pageSize = 10; // Number of items per page
   int _totalItems = 0;
-
-  // Citation heights for edit dialog
-  final List<double> _citationHeights = [];
 
   @override
   void initState() {
@@ -96,6 +94,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                       onChanged: (bool? newValue) {
                         setState(() {
                           _sortAscending = newValue ?? false;
+                          _currentPage = 0; // Reset to first page when sort order changes
                         });
                       },
                     ),
@@ -138,19 +137,17 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Podcasts table with pagination
             Expanded(
-              child: _buildPodcastsTable(context),
+              child: _buildPodcastsTableWithPagination(context),
             ),
-
-            // Pagination Controls
-            _buildPaginationControls(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPodcastsTable(BuildContext context) {
+  Widget _buildPodcastsTableWithPagination(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('podcasts')
@@ -187,7 +184,23 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
           endIndex.clamp(0, filteredPodcasts.length),
         );
 
-        if (filteredPodcasts.isEmpty) {
+        return Column(
+          children: [
+            // Table content
+            Expanded(
+              child: _buildTableContent(context, paginatedPodcasts),
+            ),
+
+            // Pagination controls - built inside the StreamBuilder
+            _buildPaginationControls(totalPages),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTableContent(BuildContext context, List<QueryDocumentSnapshot> paginatedPodcasts) {
+    if (paginatedPodcasts.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -237,6 +250,11 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
+                    dataTextStyle: const TextStyle(fontSize: 12), // Decreased font size by 1
+                    headingTextStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ), // Decreased header font size by 1
                     headingRowColor: MaterialStateProperty.resolveWith<Color?>(
                       (Set<MaterialState> states) => Colors.blue[50],
                     ),
@@ -247,8 +265,6 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                       DataColumn(label: Text('Duration')),
                       DataColumn(label: Text('File Size')),
                       DataColumn(label: Text('Upload Date')),
-                      DataColumn(label: Text('Citations')),
-                      DataColumn(label: Text('Storage')),
                       DataColumn(label: Text('Active')),
                       DataColumn(label: Text('Actions')),
                     ],
@@ -262,17 +278,11 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
             ),
           ],
         );
-      },
-    );
   }
 
-  Widget _buildPaginationControls() {
-    final totalPages = (_totalItems / _pageSize).ceil();
+  Widget _buildPaginationControls(int totalPages) {
     final hasPreviousPage = _currentPage > 0;
     final hasNextPage = _currentPage < totalPages - 1 && totalPages > 0;
-
-    if (totalPages <= 1)
-      return const SizedBox(); // Hide pagination if only one page
 
     return Card(
       elevation: 2,
@@ -296,8 +306,8 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
 
             // Page info
             Text(
-              'Page ${_currentPage + 1} of $totalPages',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              'Page ${_currentPage + 1} of ${totalPages == 0 ? 1 : totalPages}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
             const SizedBox(width: 8),
 
@@ -328,8 +338,6 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
 
   DataRow _buildDataRow(
       BuildContext context, String podcastId, Map<String, dynamic> data) {
-    final citations = List<String>.from(data['citations'] ?? []);
-
     return DataRow(
       cells: [
         // ID Column - Display the Firestore document ID
@@ -376,34 +384,12 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
         DataCell(
           Text(_formatDate(data['createAt'] ?? data['uploadedAt'])),
         ),
-        // Citations Count with preview
-        DataCell(
-          GestureDetector(
-            onTap: () => _showCitationsPreviewDialog(context, citations),
-            child: Chip(
-              label: Text(
-                '${citations.length}',
-                style: const TextStyle(fontSize: 10, color: Colors.white),
-              ),
-              backgroundColor: citations.isNotEmpty ? Colors.blue : Colors.grey,
-            ),
-          ),
-        ),
-        // Storage Provider
-        DataCell(
-          Chip(
-            label: Text(
-              data['storageProvider']?.toString().toUpperCase() ?? 'UNKNOWN',
-              style: const TextStyle(fontSize: 10, color: Colors.white),
-            ),
-            backgroundColor: _getStorageColor(data['storageProvider']),
-          ),
-        ),
         // Active Status
         DataCell(
           Icon(
             data['isActive'] == true ? Icons.check_circle : Icons.cancel,
             color: data['isActive'] == true ? Colors.green : Colors.red,
+            size: 16,
           ),
         ),
         // Actions
@@ -411,7 +397,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
                 onPressed: () {
                   showDialog(
                     context: context,
@@ -423,17 +409,36 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
                 onPressed: () {
                   _showDeleteDialog(
                       context, podcastId, data['title'] ?? 'this podcast');
                 },
               ),
               IconButton(
-                icon:
-                    const Icon(Icons.audiotrack, size: 18, color: Colors.green),
-                onPressed: () {
-                  _showAudioUrlDialog(context, data['audioUrl']);
+                icon: const Icon(Icons.audiotrack, size: 16, color: Colors.green),
+                onPressed: () async {
+                  final audioUrl = data['audioUrl'];
+                  if (audioUrl != null && audioUrl.isNotEmpty) {
+                    try {
+                      await launchUrl(
+                        Uri.parse(audioUrl),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    } catch (e) {
+                      Fluttertoast.showToast(
+                        msg: 'Cannot open audio URL: $e',
+                        backgroundColor: Colors.red,
+                        textColor: Colors.white,
+                      );
+                    }
+                  } else {
+                    Fluttertoast.showToast(
+                      msg: 'No audio URL available',
+                      backgroundColor: Colors.orange,
+                      textColor: Colors.white,
+                    );
+                  }
                 },
               ),
             ],
@@ -484,261 +489,6 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
     }
   }
 
-  Color _getStorageColor(String? provider) {
-    switch (provider?.toLowerCase()) {
-      case 'supabase':
-        return Colors.green;
-      case 'manual':
-        return Colors.orange;
-      case 'external':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  void _showEditDialog(
-      BuildContext context, String podcastId, Map<String, dynamic> data) {
-    final titleController = TextEditingController(text: data['title'] ?? '');
-    final descriptionController =
-        TextEditingController(text: data['description'] ?? '');
-    bool isActive = data['isActive'] ?? true;
-
-    // Citations management for edit dialog - now using rich text
-    final List<String> citations = List<String>.from(data['citations'] ?? []);
-    // Add one empty citation field if there are no citations
-    if (citations.isEmpty) {
-      citations.add('');
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Edit Podcast'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Title',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Citations Section - Using simple text fields for dialog
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Citations',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle,
-                              color: Colors.green, size: 20),
-                          onPressed: () {
-                            setState(() {
-                              citations.add('');
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Note: Rich text formatting is available in the upload page. Here you can edit the plain text content.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._buildSimpleCitationFieldsForEdit(citations, setState),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                CheckboxListTile(
-                  title: const Text('Active'),
-                  value: isActive,
-                  onChanged: (value) {
-                    setState(() {
-                      isActive = value ?? true;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                // Collect non-empty citations (rich text format)
-                final finalCitations = citations
-                    .where((citation) => citation.trim().isNotEmpty)
-                    .toList();
-
-                await FirebaseFirestore.instance
-                    .collection('podcasts')
-                    .doc(podcastId)
-                    .update({
-                  'title': titleController.text.trim(),
-                  'description': descriptionController.text.trim(),
-                  'isActive': isActive,
-                  'citations': finalCitations, // Update citations
-                });
-
-                Navigator.pop(context);
-                Fluttertoast.showToast(msg: 'Podcast updated successfully!');
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildSimpleCitationFieldsForEdit(
-      List<String> citations, StateSetter setState) {
-    // Convert rich text to plain text for editing
-    final List<TextEditingController> controllers = citations.map((citation) {
-      String plainText = citation;
-      try {
-        // Try to extract plain text from rich text JSON
-        plainText = richTextToPlainText(citation);
-      } catch (e) {
-        // If it's not rich text JSON, use as is
-        plainText = citation;
-      }
-      return TextEditingController(text: plainText);
-    }).toList();
-
-    // Initialize heights if needed
-    while (_citationHeights.length < citations.length) {
-      _citationHeights.add(100.0);
-    }
-    
-    // Remove excess heights if citations were removed
-    if (_citationHeights.length > citations.length) {
-      _citationHeights.removeRange(citations.length, _citationHeights.length);
-    }
-
-    return List.generate(citations.length, (index) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Citation ${index + 1}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const Spacer(),
-                if (citations.length > 1)
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle,
-                        color: Colors.red, size: 18),
-                    onPressed: () {
-                      setState(() {
-                        controllers[index].dispose();
-                        citations.removeAt(index);
-                        _citationHeights.removeAt(index);
-                      });
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            
-            // Resizable text field container
-            Container(
-              height: _citationHeights[index],
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: TextField(
-                controller: controllers[index],
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.all(12),
-                  border: InputBorder.none,
-                  hintText: 'Enter citation text...',
-                ),
-                onChanged: (text) {
-                  citations[index] = text; // Store as plain text
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 4),
-            
-            // Resize handle
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                GestureDetector(
-                  onVerticalDragUpdate: (details) {
-                    setState(() {
-                      _citationHeights[index] = (_citationHeights[index] + details.delta.dy)
-                          .clamp(60.0, 300.0);
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.unfold_more, size: 16, color: Colors.grey),
-                        SizedBox(width: 4),
-                        Text(
-                          'Drag to resize',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
   void _showDeleteDialog(BuildContext context, String podcastId, String title) {
     showDialog(
       context: context,
@@ -760,83 +510,6 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
               Fluttertoast.showToast(msg: 'Podcast deleted successfully!');
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAudioUrlDialog(BuildContext context, String? audioUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Audio URL'),
-        content: SelectableText(
-          audioUrl ?? 'No URL available',
-          style: const TextStyle(fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          if (audioUrl != null && audioUrl.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                // You can add functionality to copy to clipboard or open URL
-                Fluttertoast.showToast(msg: 'URL: $audioUrl');
-              },
-              child: const Text('Copy'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showCitationsPreviewDialog(BuildContext context, List<String> citations) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Citations (${citations.length})'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: citations.isEmpty
-              ? const Center(child: Text('No citations available'))
-              : ListView.builder(
-                  itemCount: citations.length,
-                  itemBuilder: (context, index) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Citation ${index + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            // Use RichTextViewer to display formatted content
-                            RichTextViewer(
-                              richTextJson: citations[index],
-                              height: 100,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
           ),
         ],
       ),
